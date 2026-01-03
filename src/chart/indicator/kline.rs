@@ -8,6 +8,7 @@ use exchange::{Kline, Timeframe, Trade};
 
 pub mod open_interest;
 pub mod volume;
+pub mod funding_rate;
 
 pub trait KlineIndicatorImpl {
     /// Clear all caches for a full redraw
@@ -47,6 +48,8 @@ pub trait KlineIndicatorImpl {
     fn on_basis_change(&mut self, _source: &PlotData<KlineDataPoint>) {}
 
     fn on_open_interest(&mut self, _pairs: &[exchange::OpenInterest]) {}
+
+    fn on_funding_rate(&mut self, _pairs: &[exchange::FundingRate]) {}
 }
 
 pub struct FetchCtx<'a> {
@@ -62,6 +65,9 @@ pub fn make_empty(which: KlineIndicator) -> Box<dyn KlineIndicatorImpl> {
         KlineIndicator::Volume => Box::new(super::kline::volume::VolumeIndicator::new()),
         KlineIndicator::OpenInterest => {
             Box::new(super::kline::open_interest::OpenInterestIndicator::new())
-        }
+        },
+        KlineIndicator::FundingRate => {
+            Box::new(super::kline::funding_rate::FundingRateIndicator::new())
+        },
     }
 }

@@ -860,6 +860,15 @@ impl Dashboard {
                         pane_state.insert_hist_oi(req_id, &data);
                     }
                 }
+            },
+            FetchedData::FR { data, req_id } => {
+                if let Some(pane_state) = self.get_mut_pane_state_by_uuid(main_window, pane_id) {
+                    pane_state.status = pane::Status::Ready;
+
+                    if let StreamKind::Kline { .. } = stream_type {
+                        pane_state.insert_hist_fr(req_id, &data);
+                    }
+                }
             }
         }
 
@@ -1160,7 +1169,53 @@ fn request_fetch(
             if let Some((stream, pane_uid)) = kline_stream {
                 return oi_fetch_task(layout_id, pane_uid, stream, Some(req_id), Some((from, to)));
             }
-        }
+        },
+        FetchRange::FundingRate(from, to) => {
+            let kline_stream = {
+                if let Some(s) = stream {
+                    Some((s, pane_id))
+                } else {
+                    state.streams.find_ready_map(|stream| {
+                        if let StreamKind::Kline { .. } = stream {
+                            Some((*stream, pane_id))
+                        } else {
+                            None
+                        }
+                    })
+                }
+            };
+
+            if let Some((stream, pane_uid)) = kline_stream {
+                match stream {
+                    StreamKind::Kline { ticker_info, timeframe } => {
+                        return Task::perform(
+                            adapter::fetch_funding_rates(ticker_info.ticker, timeframe, Some((from, to)))
+                                .map_err(|err| err.to_user_message()),
+                            move |result| match result {
+                                Ok(rates) => {
+                                    let data = FetchedData::FR {
+                                        data: rates,
+                                        req_id: Some(req_id),
+                                    };
+                                    Message::DistributeFetchedData {
+                                        layout_id,
+                                        pane_id: pane_uid,
+                                        data,
+                                        stream,
+                                    }
+                                }
+                                Err(err) => Message::ErrorOccurred(
+                                    Some(pane_uid),
+                                    DashboardError::Fetch(err.to_string()),
+                                ),
+                            },
+                        );
+                    }
+                    _ => {}
+                }
+            }
+
+        },
         FetchRange::Trades(from_time, to_time) => {
             let trade_info = state.streams.find_ready_map(|stream| {
                 if let StreamKind::DepthAndTrades { ticker_info, .. } = stream {

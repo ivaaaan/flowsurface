@@ -1,5 +1,5 @@
 use crate::adapter::StreamKind;
-use crate::{Kline, OpenInterest, Trade};
+use crate::{FundingRate, Kline, OpenInterest, Trade};
 
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -28,6 +28,11 @@ pub enum FetchedData {
     },
     OI {
         data: Vec<OpenInterest>,
+        req_id: Option<uuid::Uuid>,
+    },
+
+    FR {
+        data: Vec<FundingRate>,
         req_id: Option<uuid::Uuid>,
     },
 }
@@ -119,6 +124,7 @@ pub enum FetchRange {
     Kline(u64, u64),
     OpenInterest(u64, u64),
     Trades(u64, u64),
+    FundingRate(u64, u64),
 }
 
 #[derive(PartialEq, Debug)]
@@ -140,7 +146,10 @@ impl FetchRequest {
             (FetchRange::Kline(s1, e1), FetchRange::Kline(s2, e2)) => e1 == e2 && s1 == s2,
             (FetchRange::OpenInterest(s1, e1), FetchRange::OpenInterest(s2, e2)) => {
                 e1 == e2 && s1 == s2
-            }
+            },
+            (FetchRange::FundingRate(s1,e1), FetchRange::FundingRate(s2,e2)) => {
+                e1 == e2 && s1 == s2
+            },
             _ => false,
         }
     }

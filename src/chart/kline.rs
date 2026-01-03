@@ -16,7 +16,7 @@ use data::chart::{
 use data::util::{abbr_large_numbers, count_decimals};
 use exchange::util::{Price, PriceStep};
 use exchange::{
-    Kline, OpenInterest as OIData, TickerInfo, Trade,
+    Kline, OpenInterest as OIData, TickerInfo, Trade, FundingRate as FRData,
     fetcher::{FetchRange, RequestHandler},
 };
 
@@ -672,6 +672,22 @@ impl KlineChart {
             indi.on_open_interest(oi_data);
         }
     }
+
+    pub fn insert_funding_rate(&mut self, req_id: Option<uuid::Uuid>, fr_data: &[FRData]) {
+        if let Some(req_id) = req_id {
+            if fr_data.is_empty() {
+                self.request_handler
+                    .mark_failed(req_id, "No data received".to_string());
+            } else {
+                self.request_handler.mark_completed(req_id);
+            }
+        }
+
+        if let Some(indi) = self.indicators[KlineIndicator::FundingRate].as_mut() {
+            indi.on_funding_rate(fr_data);
+        }
+    }
+
 
     fn calc_qty_scales(
         &self,

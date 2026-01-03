@@ -1,6 +1,6 @@
 use super::{Ticker, Timeframe};
 use crate::{
-    Kline, OpenInterest, Price, PushFrequency, TickMultiplier, TickerInfo, TickerStats, Trade,
+    Kline, OpenInterest, FundingRate, Price, PushFrequency, TickMultiplier, TickerInfo, TickerStats, Trade,
     depth::Depth,
 };
 
@@ -709,6 +709,19 @@ pub async fn fetch_open_interest(
         }
         Exchange::OkexLinear | Exchange::OkexInverse => {
             okex::fetch_historical_oi(ticker, range, timeframe).await
+        }
+        _ => Err(AdapterError::InvalidRequest("Invalid exchange".to_string())),
+    }
+}
+
+pub async fn fetch_funding_rates(
+    ticker: Ticker,
+    timeframe: Timeframe,
+    range: Option<(u64, u64)>,
+) -> Result<Vec<FundingRate>, AdapterError> {
+    match ticker.exchange {
+        Exchange::BinanceLinear | Exchange::BinanceInverse => {
+            binance::fetch_historical_funding_rate(ticker, range, timeframe).await
         }
         _ => Err(AdapterError::InvalidRequest("Invalid exchange".to_string())),
     }

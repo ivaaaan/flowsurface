@@ -1,6 +1,6 @@
 use super::{
     super::{
-        Exchange, Kline, MarketKind, OpenInterest, Price, PushFrequency, SizeUnit, StreamKind,
+        Exchange, Kline, MarketKind, OpenInterest, FundingRate, Price, PushFrequency, SizeUnit, StreamKind,
         Ticker, TickerInfo, TickerStats, Timeframe, Trade,
         adapter::StreamTicksize,
         connect::{State, connect_ws},
@@ -1300,6 +1300,76 @@ pub async fn fetch_historical_oi(
         .collect::<Vec<OpenInterest>>();
 
     Ok(open_interest)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DeFundingRate {
+    #[serde(rename = "fundingTime")]
+    pub time: u64,
+    #[serde(rename = "fundingRate", deserialize_with = "de_string_to_f32")]
+    pub rate: f32,
+}
+
+pub async fn fetch_historical_funding_rate(
+    ticker: Ticker,
+    range: Option<(u64, u64)>,
+    timeframe: Timeframe,
+) -> Result<Vec<FundingRate>, AdapterError> {
+    let (ticker_str, market) = ticker.to_full_symbol_and_type();
+    let timeframe_str = timeframe.to_string();
+
+    let (base_url, weight) = match market {
+        MarketKind::LinearPerps => (
+            LINEAR_PERP_DOMAIN.to_string() + "/fapi/v1/fundingRate",
+            1,
+        ),
+        MarketKind::InversePerps => (
+            INVERSE_PERP_DOMAIN.to_string() + "/dapi/v1/fundingRate",
+            1,
+        ),
+        _ => {
+            let err_msg = format!("Unsupported market type for funding rate: {market:?}");
+            log::error!("{}", err_msg);
+            return Err(AdapterError::InvalidRequest(err_msg));
+        }
+    };
+
+    let mut url = format!("{base_url}?symbol={ticker_str}",);
+
+    if let Some((start, end)) = range {
+        let interval_ms = timeframe.to_milliseconds();
+        let num_intervals = ((end - start) / interval_ms).min(1000);
+
+        url.push_str(&format!(
+            "&startTime={start}&endTime={end}&limit={num_intervals}"
+        ));
+    } else {
+        url.push_str("&limit=400");
+    }
+
+    let limiter = limiter_from_market_type(market);
+    let text = crate::limiter::http_request_with_limiter(&url, limiter, weight, None, None).await?;
+
+    let binance_fr: Vec<DeFundingRate> = serde_json::from_str(&text).map_err(|e| {
+        log::error!(
+            "Failed to parse response from {}: {}\nResponse: {}",
+            url,
+            e,
+            text
+        );
+        AdapterError::ParseError(format!("Failed to parse funding rate: {e}"))
+    })?;
+
+    let funding_rates = binance_fr
+        .iter()
+        .map(|x| FundingRate {
+            time: x.time,
+            rate: x.rate,
+        })
+        .collect::<Vec<FundingRate>>();
+
+    Ok(funding_rates)
 }
 
 pub async fn fetch_trades(

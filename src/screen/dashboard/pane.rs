@@ -26,9 +26,7 @@ use data::{
     layout::pane::{ContentKind, LinkGroup, PaneSetup, Settings, VisualConfig},
 };
 use exchange::{
-    Kline, OpenInterest, StreamPairKind, TickMultiplier, TickerInfo, Timeframe,
-    adapter::{MarketKind, PersistStreamKind, ResolvedStream, StreamKind, StreamTicksize},
-    fetcher::FetchRequests,
+    adapter::{MarketKind, PersistStreamKind, ResolvedStream, StreamKind, StreamTicksize}, fetcher::FetchRequests, FundingRate, Kline, OpenInterest, StreamPairKind, TickMultiplier, TickerInfo, Timeframe
 };
 use iced::{
     Alignment, Element, Length, Renderer, Theme,
@@ -328,6 +326,20 @@ impl State {
                     panic!("Kline chart wasn't initialized when inserting open interest");
                 };
                 chart.insert_open_interest(req_id, oi);
+            }
+            _ => {
+                log::error!("pane content not candlestick");
+            }
+        }
+    }
+
+    pub fn insert_hist_fr(&mut self, req_id: Option<uuid::Uuid>, oi: &[FundingRate]) {
+        match &mut self.content {
+            Content::Kline { chart, .. } => {
+                let Some(chart) = chart else {
+                    panic!("Kline chart wasn't initialized when inserting funding rates");
+                };
+                chart.insert_funding_rate(req_id, oi);
             }
             _ => {
                 log::error!("pane content not candlestick");
